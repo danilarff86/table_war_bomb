@@ -31,20 +31,33 @@ pio run --target clean
 
 ## Game Logic (src/main.cpp)
 
-The entire firmware lives in one file. Key globals:
+The entire firmware lives in one file. Key constants (top of file):
+
+| Constant | Purpose |
+|----------|---------|
+| `X` | Odds of disabling spy mode (`4` → 25% chance no peek) |
+| `MAX_COUNT` / `MIN_COUNT` | Countdown range bounds (30 / 15) |
+| `COUNTDOWN_DELAY` | Milliseconds per tick (1000) |
+| Pin constants | `BUTTON_PIN`, `VIBRA_PIN`, `BUZZER_PIN`, `RANDOM_SEED_ANALOG_PIN` |
+
+Per-game locals (computed in `loop()`, passed to `playGame()`):
 
 | Variable | Purpose |
 |----------|---------|
-| `count` | Starting countdown value (randomised 15–30 on each game start) |
+| `count` | Starting countdown value (randomised 15–29 each round) |
 | `spy` | Secret countdown value at which the "spy peek" buzz fires |
-| `spyflag` | Whether the spy peek is active this round (skipped with 1-in-`X` probability) |
-| `X` | Odds of disabling spy mode (currently `4` → 25% chance no peek) |
+| `spyflag` | Whether the spy peek is active this round |
 
 **Game flow:**
-1. `loop()` waits for button release (A0 LOW → HIGH transition).
-2. On release: seeds RNG from `analogRead(A6) + millis()`, picks random `count` and `spy`, enters `playGame()`.
-3. `playGame()` counts down each second; at `spy` it fires three short buzzes (spy peek signal), then continues.
-4. At `count == 0`: activates vibra + buzzer ("explosion"), shows `LoSt` segment pattern, then flashes until button is pressed again.
+1. `loop()` calls `blankDisplay()` then detects button press (A0 goes LOW).
+2. On press: seeds RNG from `analogRead(A6) + millis()`, picks random `count` and `spy`, enters `playGame(count, spy, spyflag)`.
+3. `playGame()` runs while button is held (A0 LOW); counts down one tick per second. At `spy` it fires three short buzzes via `spyPeek()`, then continues.
+4. At `count == 0`: `boom()` activates vibra + buzzer in three pulses, shows `LoSt` segment pattern, then `blinkLose()` flashes until button is released.
+5. Releasing the button (A0 HIGH) exits `playGame()` at any point; `loop()` restarts.
+
+**Key helpers:** `blankDisplay()`, `loseDisplay()`, `spyPeek()`, `boom()`, `blinkLose()`.
+
+**Dead code:** `rstDisplay()` and `resetFunc` remain from a removed "reset" feature and are never called.
 
 **Serial debug:** Enabled at 9600 baud. To suppress all serial output in production, search-replace `////Serial.` → `//Serial.` (as noted in comments).
 
