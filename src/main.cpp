@@ -14,44 +14,101 @@
 // odds of skipping spy mode
 //    1/X
 const int X = 4;
-
-// Module connection pins (Digital Pins)
-#define CLK A2
-#define DIO A3
+// The maximum count for the game
+const int MAX_COUNT = 30;
+// The minimum count for the game
+const int MIN_COUNT = 15;
 
 // The amount of time (in milliseconds) between tests
-#define countdown_delay 1000
-
-const int button = A0;
-const int vibra = 4;
-const int buzzer = 6;
+const int COUNTDOWN_DELAY = 1000;
+// The analog pin used to generate a random seed
+const int RANDOM_SEED_ANALOG_PIN = A6;
+// The button pin
+const int BUTTON_PIN = A0;
+// The vibration motor pin
+const int VIBRA_PIN = 4;
+// The buzzer pin
+const int BUZZER_PIN = 6;
 
 void ( *resetFunc )( void ) = 0;
+
+// Module connection pins (Digital Pins)
+const auto CLK = A2;
+const auto DIO = A3;
 TM1637Display display( CLK, DIO );
-uint8_t data[] = { 0, 0, 0, 0 };
-static int count = 30;
-static int spy = 5;
-bool spyflag = true;
 
 void
-blankDISPLAY( )
+blankDisplay( )
 {
     const uint8_t blank[] = { 0, 0, 0, 0 };
     display.setSegments( blank );
 }
 
 void
-loseDISPLAY( )
+loseDisplay( )
 {
     const uint8_t lose[] = { 0X38, 0X3F, 0X6D, 0X79 };
     display.setSegments( lose );
 }
 
 void
-rstDISPLAY( )
+rstDisplay( )
 {
     const uint8_t reset[] = { 0X00, 0X50, 0X6D, 0X78 };
     display.setSegments( reset );
+}
+
+void
+spyPeek( )
+{
+    Serial.println( "Spy Peek" );
+    delay( 100 );
+    digitalWrite( BUZZER_PIN, HIGH );
+    delay( 100 );
+    digitalWrite( BUZZER_PIN, LOW );
+    delay( 200 );
+    digitalWrite( BUZZER_PIN, HIGH );
+    delay( 100 );
+    digitalWrite( BUZZER_PIN, LOW );
+    delay( 200 );
+    digitalWrite( BUZZER_PIN, HIGH );
+    delay( 100 );
+    digitalWrite( BUZZER_PIN, LOW );
+    delay( 200 );
+}
+
+void
+boom( )
+{
+    Serial.println( "Boom!" );
+    loseDisplay( );
+    digitalWrite( VIBRA_PIN, HIGH );
+    digitalWrite( BUZZER_PIN, HIGH );
+    delay( 1000 );
+    digitalWrite( BUZZER_PIN, LOW );
+    digitalWrite( VIBRA_PIN, LOW );
+    delay( 500 );
+    digitalWrite( BUZZER_PIN, HIGH );
+    digitalWrite( VIBRA_PIN, HIGH );
+    delay( 1000 );
+    digitalWrite( BUZZER_PIN, LOW );
+    digitalWrite( VIBRA_PIN, LOW );
+    delay( 500 );
+    digitalWrite( BUZZER_PIN, HIGH );
+    digitalWrite( VIBRA_PIN, HIGH );
+    delay( 1000 );
+    digitalWrite( BUZZER_PIN, LOW );
+    digitalWrite( VIBRA_PIN, LOW );
+    delay( 4000 );
+}
+
+void
+blinkLose( )
+{
+    delay( 100 );
+    blankDisplay( );
+    delay( 300 );
+    loseDisplay( );
 }
 
 //***********************************
@@ -59,40 +116,19 @@ rstDISPLAY( )
 // Return true on timeout
 //***********************************
 void
-playGame( )
+playGame( int count = MAX_COUNT, int spy = 5, bool spyflag = true )
 {
-    while ( digitalRead( A0 ) == LOW )
+    while ( digitalRead( BUTTON_PIN ) == LOW )
     {
         // update display
-        data[ 3 ] = display.encodeDigit( count / 1 % 10 );
-        data[ 2 ] = display.encodeDigit( count / 10 % 10 );
-        //    data[1] = display.encodeDigit(count / 100 % 10);
-        //    data[0] = display.encodeDigit(count / 1000 % 10);
-        display.setSegments( data );
+        display.showNumberDec( count, false );
         // check for spy time
         if ( ( count == spy ) && ( spyflag ) )
         {
-            Serial.println( "Spy Peek" );
-            delay( 100 );
-            digitalWrite( buzzer, HIGH );
-            delay( 100 );
-            digitalWrite( buzzer, LOW );
-            delay( 200 );
-            digitalWrite( buzzer, HIGH );
-            delay( 100 );
-            digitalWrite( buzzer, LOW );
-            delay( 200 );
-            digitalWrite( buzzer, HIGH );
-            delay( 100 );
-            digitalWrite( buzzer, LOW );
-            delay( 200 );
+            spyPeek( );
             --count;
             // update display
-            data[ 3 ] = display.encodeDigit( count / 1 % 10 );
-            data[ 2 ] = display.encodeDigit( count / 10 % 10 );
-            //      data[1] = display.encodeDigit(count / 100 % 10);
-            //      data[0] = display.encodeDigit(count / 1000 % 10);
-            display.setSegments( data );
+            display.showNumberDec( count, false );
         }
 
         // Here is time has run out!
@@ -100,39 +136,17 @@ playGame( )
         {
             if ( count <= 0 )
             {
-                Serial.println( "Boom!" );
-                digitalWrite( vibra, HIGH );
-                digitalWrite( buzzer, HIGH );
-                delay( 1000 );
-                loseDISPLAY( );
-                digitalWrite( buzzer, LOW );
-                digitalWrite( vibra, LOW );
-                delay( 500 );
-                digitalWrite( buzzer, HIGH );
-                digitalWrite( vibra, HIGH );
-                delay( 1000 );
-                digitalWrite( buzzer, LOW );
-                digitalWrite( vibra, LOW );
-                delay( 500 );
-                digitalWrite( buzzer, HIGH );
-                digitalWrite( vibra, HIGH );
-                delay( 1000 );
-                digitalWrite( buzzer, LOW );
-                digitalWrite( vibra, LOW );
-                delay( 4000 );
-                while ( digitalRead( A0 ) == LOW )
+                boom( );
+                while ( digitalRead( BUTTON_PIN ) == LOW )
                 {
-                    delay( 100 );
-                    blankDISPLAY( );
-                    delay( 300 );
-                    loseDISPLAY( );
+                    blinkLose( );
                 }
                 return;
             }
         }
         if ( !( ( count == spy ) && ( spyflag ) ) )
         {
-            delay( countdown_delay );
+            delay( COUNTDOWN_DELAY );
             --count;
         }
     }
@@ -142,9 +156,9 @@ void
 setup( )
 {
     display.setBrightness( 7 );
-    pinMode( button, INPUT );
-    pinMode( buzzer, OUTPUT );
-    pinMode( vibra, OUTPUT );
+    pinMode( BUTTON_PIN, INPUT );
+    pinMode( BUZZER_PIN, OUTPUT );
+    pinMode( VIBRA_PIN, OUTPUT );
 
     //  TESTING ONLY
     Serial.begin( 9600 );  // To debug search and replace (Ctl-F) "////Serial." with "//Serial." or
@@ -155,26 +169,23 @@ setup( )
 void
 loop( )
 {
-    blankDISPLAY( );
+    blankDisplay( );
 
-    if ( digitalRead( A0 ) == LOW )
+    if ( digitalRead( BUTTON_PIN ) == LOW )
     {
         delay( 30 );
         Serial.println( "button release" );
-        randomSeed( analogRead( A6 ) + millis( ) );
-        count = random( 15, 30 );
-        spy = random( count );
-        if ( random( 0, X ) == 0 )
-            spyflag = false;
-        else
-            spyflag = true;
+        randomSeed( analogRead( RANDOM_SEED_ANALOG_PIN ) + millis( ) );
+        const int count = random( MIN_COUNT, MAX_COUNT );
+        const int spy = random( count );
+        const bool spyflag = random( 0, X ) != 0;
         Serial.print( "spy flag " );
         Serial.println( spyflag );
         Serial.print( "spy time " );
         Serial.println( spy );
 
         // start game
-        playGame( );
+        playGame( count, spy, spyflag );
         delay( 30 );
     }
 }
