@@ -1,4 +1,7 @@
 #include <Arduino.h>
+#define _SS_MAX_RX_BUFF 64
+#include <SoftwareSerial.h>
+#include <DFRobotDFPlayerMini.h>
 #include <TM1637Display.h>
 
 // ############################
@@ -27,8 +30,13 @@ const int RANDOM_SEED_ANALOG_PIN = A6;
 const int BUTTON_PIN = A0;
 // The vibration motor pin
 const int VIBRA_PIN = 4;
-// The buzzer pin
-const int BUZZER_PIN = 6;
+// DFPlayer Mini serial pins
+const int DF_RX_PIN = 7;  // Arduino RX ← DFPlayer TX
+const int DF_TX_PIN = 6;  // Arduino TX → DFPlayer RX (via 1kΩ resistor)
+
+// SD card sound file indices in folder /01/
+const int SOUND_SPY  = 1;  // 001.mp3 – three-beep spy peek
+const int SOUND_BOOM = 2;  // 002.mp3 – explosion
 
 void ( *resetFunc )( void ) = 0;
 
@@ -36,6 +44,8 @@ void ( *resetFunc )( void ) = 0;
 const auto CLK = A2;
 const auto DIO = A3;
 TM1637Display display( CLK, DIO );
+SoftwareSerial dfSerial( DF_RX_PIN, DF_TX_PIN );
+DFRobotDFPlayerMini dfPlayer;
 
 void
 blankDisplay( )
@@ -59,22 +69,39 @@ rstDisplay( )
 }
 
 void
+printDFPlayerDetail( uint8_t type, int value )
+{
+    switch ( type )
+    {
+        case TimeOut: Serial.println( "DF: timed out (no response)" ); break;
+        case DFPlayerCardInserted: Serial.println( "DF: SD inserted" ); break;
+        case DFPlayerCardRemoved: Serial.println( "DF: SD removed" ); break;
+        case DFPlayerCardOnline: Serial.println( "DF: SD online" ); break;
+        case DFPlayerPlayFinished:
+            Serial.print( "DF: finished file #" );
+            Serial.println( value );
+            break;
+        case DFPlayerError:
+            Serial.print( "DF error: " );
+            switch ( value )
+            {
+                case Busy: Serial.println( "no SD / busy" ); break;
+                case Sleeping: Serial.println( "sleeping" ); break;
+                case FileIndexOut: Serial.println( "file index out of range" ); break;
+                case FileMismatch: Serial.println( "file not found" ); break;
+                default: Serial.println( value ); break;
+            }
+            break;
+        default: break;
+    }
+}
+
+void
 spyPeek( )
 {
     Serial.println( "Spy Peek" );
-    delay( 100 );
-    digitalWrite( BUZZER_PIN, HIGH );
-    delay( 100 );
-    digitalWrite( BUZZER_PIN, LOW );
-    delay( 200 );
-    digitalWrite( BUZZER_PIN, HIGH );
-    delay( 100 );
-    digitalWrite( BUZZER_PIN, LOW );
-    delay( 200 );
-    digitalWrite( BUZZER_PIN, HIGH );
-    delay( 100 );
-    digitalWrite( BUZZER_PIN, LOW );
-    delay( 200 );
+    dfPlayer.playFolder( 1, SOUND_SPY );
+    delay( 1000 );
 }
 
 void
@@ -82,22 +109,17 @@ boom( )
 {
     Serial.println( "Boom!" );
     loseDisplay( );
+    dfPlayer.playFolder( 1, SOUND_BOOM );
     digitalWrite( VIBRA_PIN, HIGH );
-    digitalWrite( BUZZER_PIN, HIGH );
     delay( 1000 );
-    digitalWrite( BUZZER_PIN, LOW );
     digitalWrite( VIBRA_PIN, LOW );
     delay( 500 );
-    digitalWrite( BUZZER_PIN, HIGH );
     digitalWrite( VIBRA_PIN, HIGH );
     delay( 1000 );
-    digitalWrite( BUZZER_PIN, LOW );
     digitalWrite( VIBRA_PIN, LOW );
     delay( 500 );
-    digitalWrite( BUZZER_PIN, HIGH );
     digitalWrite( VIBRA_PIN, HIGH );
     delay( 1000 );
-    digitalWrite( BUZZER_PIN, LOW );
     digitalWrite( VIBRA_PIN, LOW );
     delay( 4000 );
 }
@@ -157,18 +179,49 @@ setup( )
 {
     display.setBrightness( 7 );
     pinMode( BUTTON_PIN, INPUT );
-    pinMode( BUZZER_PIN, OUTPUT );
     pinMode( VIBRA_PIN, OUTPUT );
 
     //  TESTING ONLY
     Serial.begin( 9600 );  // To debug search and replace (Ctl-F) "////Serial." with "//Serial." or
                            // reverse...
     Serial.println( "Program start." );
+
+    dfSerial.begin( 9600 );
+    delay( 1000 );  // YX5200 needs ~1 s to boot before accepting commands
+    // second arg false = no ACK; YX5200 clones often don't send one
+    if ( !dfPlayer.begin( dfSerial, false ) )
+    {
+        Serial.println( "DFPlayer init failed!" );
+        while ( true )
+            ;
+    }
+    dfPlayer.volume( 25 );  // 0–30
+
+    Serial.print( "Volume readback : " ); Serial.println( dfPlayer.readVolume() );
+    Serial.print( "Files on SD     : " ); Serial.println( dfPlayer.readFileCounts() );
+    Serial.print( "Folders on SD   : " ); Serial.println( dfPlayer.readFolderCounts() );
+    delay( 200 );
+
+    Serial.println( "--- Test 1: playFolder(1,1) ---" );
+    dfPlayer.playFolder( 1, 1 );
+    delay( 3000 );
+    dfPlayer.stop();
+    delay( 300 );
+
+    Serial.println( "--- Test 2: play(1) root file ---" );
+    dfPlayer.play( 1 );
+    delay( 3000 );
+    dfPlayer.stop();
+
+    Serial.println( "DFPlayer ready." );
 }
 
 void
 loop( )
 {
+    if ( dfPlayer.available( ) )
+        printDFPlayerDetail( dfPlayer.readType( ), dfPlayer.read( ) );
+
     blankDisplay( );
 
     if ( digitalRead( BUTTON_PIN ) == LOW )
