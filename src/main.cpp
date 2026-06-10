@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #define _SS_MAX_RX_BUFF 64
-#include <SoftwareSerial.h>
 #include <DFRobotDFPlayerMini.h>
+#include <SoftwareSerial.h>
 #include <TM1637Display.h>
 
 // ############################
@@ -35,7 +35,7 @@ const int DF_RX_PIN = 7;  // Arduino RX ← DFPlayer TX
 const int DF_TX_PIN = 6;  // Arduino TX → DFPlayer RX (via 1kΩ resistor)
 
 // SD card sound file indices in folder /01/
-const int SOUND_SPY  = 1;  // 001.mp3 – three-beep spy peek
+const int SOUND_SPY = 1;   // 001.mp3 – three-beep spy peek
 const int SOUND_BOOM = 2;  // 002.mp3 – explosion
 
 void ( *resetFunc )( void ) = 0;
@@ -73,26 +73,45 @@ printDFPlayerDetail( uint8_t type, int value )
 {
     switch ( type )
     {
-        case TimeOut: Serial.println( "DF: timed out (no response)" ); break;
-        case DFPlayerCardInserted: Serial.println( "DF: SD inserted" ); break;
-        case DFPlayerCardRemoved: Serial.println( "DF: SD removed" ); break;
-        case DFPlayerCardOnline: Serial.println( "DF: SD online" ); break;
-        case DFPlayerPlayFinished:
-            Serial.print( "DF: finished file #" );
+    case TimeOut:
+        Serial.println( "DF: timed out (no response)" );
+        break;
+    case DFPlayerCardInserted:
+        Serial.println( "DF: SD inserted" );
+        break;
+    case DFPlayerCardRemoved:
+        Serial.println( "DF: SD removed" );
+        break;
+    case DFPlayerCardOnline:
+        Serial.println( "DF: SD online" );
+        break;
+    case DFPlayerPlayFinished:
+        Serial.print( "DF: finished file #" );
+        Serial.println( value );
+        break;
+    case DFPlayerError:
+        Serial.print( "DF error: " );
+        switch ( value )
+        {
+        case Busy:
+            Serial.println( "no SD / busy" );
+            break;
+        case Sleeping:
+            Serial.println( "sleeping" );
+            break;
+        case FileIndexOut:
+            Serial.println( "file index out of range" );
+            break;
+        case FileMismatch:
+            Serial.println( "file not found" );
+            break;
+        default:
             Serial.println( value );
             break;
-        case DFPlayerError:
-            Serial.print( "DF error: " );
-            switch ( value )
-            {
-                case Busy: Serial.println( "no SD / busy" ); break;
-                case Sleeping: Serial.println( "sleeping" ); break;
-                case FileIndexOut: Serial.println( "file index out of range" ); break;
-                case FileMismatch: Serial.println( "file not found" ); break;
-                default: Serial.println( value ); break;
-            }
-            break;
-        default: break;
+        }
+        break;
+    default:
+        break;
     }
 }
 
@@ -133,6 +152,12 @@ blinkLose( )
     loseDisplay( );
 }
 
+bool
+buttonReleased( )
+{
+    return digitalRead( BUTTON_PIN ) == HIGH;
+}
+
 //***********************************
 // Execute active game play
 // Return true on timeout
@@ -140,7 +165,7 @@ blinkLose( )
 void
 playGame( int count = MAX_COUNT, int spy = 5, bool spyflag = true )
 {
-    while ( digitalRead( BUTTON_PIN ) == LOW )
+    while ( buttonReleased( ) )
     {
         // update display
         display.showNumberDec( count, false );
@@ -159,7 +184,7 @@ playGame( int count = MAX_COUNT, int spy = 5, bool spyflag = true )
             if ( count <= 0 )
             {
                 boom( );
-                while ( digitalRead( BUTTON_PIN ) == LOW )
+                while ( buttonReleased( ) )
                 {
                     blinkLose( );
                 }
@@ -197,21 +222,24 @@ setup( )
     }
     dfPlayer.volume( 25 );  // 0–30
 
-    Serial.print( "Volume readback : " ); Serial.println( dfPlayer.readVolume() );
-    Serial.print( "Files on SD     : " ); Serial.println( dfPlayer.readFileCounts() );
-    Serial.print( "Folders on SD   : " ); Serial.println( dfPlayer.readFolderCounts() );
+    Serial.print( "Volume readback : " );
+    Serial.println( dfPlayer.readVolume( ) );
+    Serial.print( "Files on SD     : " );
+    Serial.println( dfPlayer.readFileCounts( ) );
+    Serial.print( "Folders on SD   : " );
+    Serial.println( dfPlayer.readFolderCounts( ) );
     delay( 200 );
 
     Serial.println( "--- Test 1: playFolder(1,1) ---" );
     dfPlayer.playFolder( 1, 1 );
     delay( 3000 );
-    dfPlayer.stop();
+    dfPlayer.stop( );
     delay( 300 );
 
     Serial.println( "--- Test 2: play(1) root file ---" );
     dfPlayer.play( 1 );
     delay( 3000 );
-    dfPlayer.stop();
+    dfPlayer.stop( );
 
     Serial.println( "DFPlayer ready." );
 }
@@ -224,7 +252,7 @@ loop( )
 
     blankDisplay( );
 
-    if ( digitalRead( BUTTON_PIN ) == LOW )
+    if ( buttonReleased( ) )
     {
         delay( 30 );
         Serial.println( "button release" );

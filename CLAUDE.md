@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Arduino-based "table war bomb" game prop. A countdown timer with a hidden "spy peek" mechanic. Targets the **Arduino Pro Mini 16MHz ATmega168** via PlatformIO.
 
 **Hardware pins:**
-- `A0` — button (INPUT, active LOW)
+- `A0` — button (INPUT, active LOW — connected between A0 and GND, no pull-up resistor)
 - `A2`/`A3` — TM1637 4-digit 7-segment display (CLK/DIO)
 - `A6` — floating analog pin used as entropy source for `randomSeed`
 - `4` — vibration motor (NPN transistor switch — see wiring below)
