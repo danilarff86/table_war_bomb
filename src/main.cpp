@@ -35,8 +35,13 @@ const int DF_RX_PIN = 7;  // Arduino RX ← DFPlayer TX
 const int DF_TX_PIN = 6;  // Arduino TX → DFPlayer RX (via 1kΩ resistor)
 
 // SD card sound file indices in folder /01/
+const int GAME_SOUND_FOLDER = 1;
 const int SOUND_SPY = 1;   // 001.mp3 – three-beep spy peek
 const int SOUND_BOOM = 2;  // 002.mp3 – explosion
+
+// Meme sounds: folder /02/ on SD card
+const int SOUND_MEME_FOLDER = 2;
+int memeFileCount = 0;  // populated in setup() via readFileCountsInFolder()
 
 void ( *resetFunc )( void ) = 0;
 
@@ -116,10 +121,30 @@ printDFPlayerDetail( uint8_t type, int value )
 }
 
 void
+playMeme( int track )
+{
+    Serial.print( "Meme track: " );
+    Serial.println( track );
+    dfPlayer.playFolder( SOUND_MEME_FOLDER, track );
+    delay( 200 );  // let the player start before polling
+    unsigned long start = millis( );
+    while ( millis( ) - start < 30000UL )
+    {
+        if ( dfPlayer.available( ) )
+        {
+            uint8_t type = dfPlayer.readType( );
+            if ( type == DFPlayerPlayFinished )
+                break;
+            printDFPlayerDetail( type, dfPlayer.read( ) );
+        }
+    }
+}
+
+void
 spyPeek( )
 {
     Serial.println( "Spy Peek" );
-    dfPlayer.playFolder( 1, SOUND_SPY );
+    dfPlayer.playFolder( GAME_SOUND_FOLDER, SOUND_SPY );
     delay( 1000 );
 }
 
@@ -128,7 +153,7 @@ boom( )
 {
     Serial.println( "Boom!" );
     loseDisplay( );
-    dfPlayer.playFolder( 1, SOUND_BOOM );
+    dfPlayer.playFolder( GAME_SOUND_FOLDER, SOUND_BOOM );
     digitalWrite( VIBRA_PIN, HIGH );
     delay( 1000 );
     digitalWrite( VIBRA_PIN, LOW );
@@ -188,6 +213,11 @@ playGame( int count = MAX_COUNT, int spy = 5, bool spyflag = true )
                 {
                     blinkLose( );
                 }
+                if ( memeFileCount > 0 )
+                {
+                    randomSeed( analogRead( RANDOM_SEED_ANALOG_PIN ) + millis( ) );
+                    playMeme( random( 1, memeFileCount + 1 ) );
+                }
                 return;
             }
         }
@@ -203,7 +233,7 @@ void
 setup( )
 {
     display.setBrightness( 7 );
-    pinMode( BUTTON_PIN, INPUT );
+    pinMode( BUTTON_PIN, INPUT_PULLUP );
     pinMode( VIBRA_PIN, OUTPUT );
 
     //  TESTING ONLY
@@ -228,18 +258,16 @@ setup( )
     Serial.println( dfPlayer.readFileCounts( ) );
     Serial.print( "Folders on SD   : " );
     Serial.println( dfPlayer.readFolderCounts( ) );
+    memeFileCount = dfPlayer.readFileCountsInFolder( SOUND_MEME_FOLDER );
+    Serial.print( "Meme files (/02/): " );
+    Serial.println( memeFileCount );
     delay( 200 );
 
     Serial.println( "--- Test 1: playFolder(1,1) ---" );
-    dfPlayer.playFolder( 1, 1 );
+    dfPlayer.playFolder( GAME_SOUND_FOLDER, SOUND_SPY );
     delay( 3000 );
     dfPlayer.stop( );
     delay( 300 );
-
-    Serial.println( "--- Test 2: play(1) root file ---" );
-    dfPlayer.play( 1 );
-    delay( 3000 );
-    dfPlayer.stop( );
 
     Serial.println( "DFPlayer ready." );
 }
