@@ -215,7 +215,6 @@ playGame( int count = MAX_COUNT, int spy = 5, bool spyflag = true )
                 }
                 if ( memeFileCount > 0 )
                 {
-                    randomSeed( analogRead( RANDOM_SEED_ANALOG_PIN ) + millis( ) );
                     playMeme( random( 1, memeFileCount + 1 ) );
                 }
                 return;
@@ -235,6 +234,7 @@ setup( )
     display.setBrightness( 7 );
     pinMode( BUTTON_PIN, INPUT_PULLUP );
     pinMode( VIBRA_PIN, OUTPUT );
+    randomSeed( analogRead( RANDOM_SEED_ANALOG_PIN ) + millis( ) );
 
     //  TESTING ONLY
     Serial.begin( 9600 );  // To debug search and replace (Ctl-F) "////Serial." with "//Serial." or
@@ -270,6 +270,21 @@ setup( )
     delay( 300 );
 
     Serial.println( "DFPlayer ready." );
+
+    // flash vibration motor to indicate ready
+    digitalWrite( VIBRA_PIN, HIGH );
+    delay( 1000 );
+    digitalWrite( VIBRA_PIN, LOW );
+
+    // blink display to indicate ready
+    for ( int i = 0; i < 3; ++i )
+    {
+        const uint8_t allSegments[] = { 0X7F, 0XFF, 0X7F, 0X7F };
+        display.setSegments( allSegments );  // all segments on
+        delay( 300 );
+        blankDisplay( );
+        delay( 300 );
+    }
 }
 
 void
@@ -284,7 +299,6 @@ loop( )
     {
         delay( 30 );
         Serial.println( "button release" );
-        randomSeed( analogRead( RANDOM_SEED_ANALOG_PIN ) + millis( ) );
         const int count = random( MIN_COUNT, MAX_COUNT );
         const int spy = random( count );
         const bool spyflag = random( 0, X ) != 0;
